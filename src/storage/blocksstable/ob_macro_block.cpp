@@ -124,6 +124,16 @@ int ObDataStoreDesc::init(const ObTableSchema& table_schema, const int64_t data_
     } else {
       macro_store_size_ = macro_block_size_ * DEFAULT_RESERVE_PERCENT / 100;
     }
+    if (OB_ISNULL(column_ids_ = reinterpret_cast<uint64_t*>(allocator_.alloc(common::OB_MAX_COLUMN_NUMBER * sizeof(uint64_t))))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "failed to alloc column_ids_ memory", K(ret));
+    } else if (OB_ISNULL(column_types_ = reinterpret_cast<ObObjMeta*>(allocator_.alloc(common::OB_MAX_COLUMN_NUMBER * sizeof(ObObjMeta))))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "failed to alloc column_types_ memory", K(ret));
+    } else if (OB_ISNULL(column_orders_ = reinterpret_cast<ObOrderType*>(allocator_.alloc(common::OB_MAX_COLUMN_NUMBER * sizeof(ObOrderType))))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "failed to alloc column_orders_ memory", K(ret));
+    }
     if (OB_SUCC(ret)) {
       if (OB_FAIL(file_handle_.assign(file_handle))) {
         STORAGE_LOG(WARN, "failed to assign file handle", K(ret), K(file_handle));
@@ -246,9 +256,21 @@ void ObDataStoreDesc::reset()
   has_lob_column_ = false;
   is_major_ = false;
   MEMSET(compressor_name_, 0, OB_MAX_HEADER_COMPRESSOR_NAME_LENGTH);
-  MEMSET(column_ids_, 0, sizeof(column_ids_));
-  MEMSET(column_types_, 0, sizeof(column_types_));
-  MEMSET(column_orders_, 0, sizeof(column_orders_));
+  // MEMSET(column_ids_, 0, sizeof(column_ids_));
+  // MEMSET(column_types_, 0, sizeof(column_types_));
+  // MEMSET(column_orders_, 0, sizeof(column_orders_));
+  if (OB_NOT_NULL(column_ids_)) {
+    allocator_.free(column_ids_);
+    column_ids_ = NULL;
+  }
+  if (OB_NOT_NULL(column_types_)) {
+    allocator_.free(column_types_);
+    column_types_ = NULL;
+  }
+  if (OB_NOT_NULL(column_orders_)) {
+    allocator_.free(column_orders_);
+    column_orders_ = NULL;
+  }
   need_calc_column_checksum_ = false;
   need_index_tree_ = false;
   store_micro_block_column_checksum_ = false;
@@ -289,9 +311,19 @@ int ObDataStoreDesc::assign(const ObDataStoreDesc& desc)
   has_lob_column_ = desc.has_lob_column_;
   is_major_ = desc.is_major_;
   MEMCPY(compressor_name_, desc.compressor_name_, OB_MAX_HEADER_COMPRESSOR_NAME_LENGTH);
-  MEMCPY(column_ids_, desc.column_ids_, sizeof(column_ids_));
-  MEMCPY(column_types_, desc.column_types_, sizeof(column_types_));
-  MEMCPY(column_orders_, desc.column_orders_, sizeof(column_orders_));
+  if (OB_ISNULL(column_ids_ = reinterpret_cast<uint64_t*>(allocator_.alloc(common::OB_MAX_COLUMN_NUMBER * sizeof(uint64_t))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_ids_ memory", K(ret));
+  } else if (OB_ISNULL(column_types_ = reinterpret_cast<ObObjMeta*>(allocator_.alloc(common::OB_MAX_COLUMN_NUMBER * sizeof(ObObjMeta))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_types_ memory", K(ret));
+  } else if (OB_ISNULL(column_orders_ = reinterpret_cast<ObOrderType*>(allocator_.alloc(common::OB_MAX_COLUMN_NUMBER * sizeof(ObOrderType))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_orders_ memory", K(ret));
+  }
+  MEMCPY(column_ids_, desc.column_ids_, common::OB_MAX_COLUMN_NUMBER * sizeof(uint64_t));
+  MEMCPY(column_types_, desc.column_types_, common::OB_MAX_COLUMN_NUMBER * sizeof(ObObjMeta));
+  MEMCPY(column_orders_, desc.column_orders_, common::OB_MAX_COLUMN_NUMBER * sizeof(ObOrderType));
   need_calc_column_checksum_ = desc.need_calc_column_checksum_;
   store_micro_block_column_checksum_ = desc.store_micro_block_column_checksum_;
   snapshot_version_ = desc.snapshot_version_;

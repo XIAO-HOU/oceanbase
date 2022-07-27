@@ -58,6 +58,8 @@ ObMacroBlockWriter::ObMacroBlockWriter()
       curr_micro_column_checksum_(NULL),
       allocator_("MacrBlocWriter"),
       macro_reader_(),
+      obj_buf_(NULL),
+      checker_obj_buf_(NULL),
       micro_rowkey_hashs_(),
       rowkey_helper_(nullptr)
 {
@@ -107,6 +109,14 @@ void ObMacroBlockWriter::reset()
   last_key_.reset();
   has_lob_ = false;
   lob_writer_.reset();
+  if (OB_NOT_NULL(obj_buf_)) {
+    allocator_.free(obj_buf_);
+    obj_buf_ = NULL;
+  }
+  if (OB_NOT_NULL(checker_obj_buf_)) {
+    allocator_.free(checker_obj_buf_);
+    checker_obj_buf_ = NULL;
+  }
   check_flat_reader_.reset();
   check_sparse_reader_.reset();
   micro_rowkey_hashs_.reset();
@@ -133,6 +143,12 @@ int ObMacroBlockWriter::open(ObDataStoreDesc& data_store_desc, const ObMacroData
   } else if (!block_write_ctx_.file_handle_.is_valid() &&
              OB_FAIL(block_write_ctx_.file_handle_.assign(data_store_desc.file_handle_))) {
     STORAGE_LOG(WARN, "fail to set file handle", K(ret), K(data_store_desc.file_handle_));
+  } else if (OB_ISNULL(obj_buf_ = allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc obj_buf_ memory", K(ret));
+  } else if (OB_ISNULL(checker_obj_buf_ = allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc checker_obj_buf_ memory", K(ret));
   } else {
     macro_handle_.set_file(data_store_desc.file_handle_.get_storage_file());
     // need to build index tree with leaf node

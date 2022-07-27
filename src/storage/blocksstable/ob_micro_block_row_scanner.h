@@ -117,6 +117,8 @@ protected:
 class ObMicroBlockRowScanner : public ObIMicroBlockRowScanner {
 public:
   ObMicroBlockRowScanner()
+    : buf_allocator_("BUF_ALLOC_"),
+      obj_buf_(NULL)
   {}
   virtual ~ObMicroBlockRowScanner()
   {}
@@ -131,8 +133,9 @@ protected:
   virtual int inner_get_next_rows(const storage::ObStoreRow*& rows, int64_t& count) override;
 
 protected:
+  common::ObArenaAllocator buf_allocator_;
   storage::ObStoreRow rows_[ObIMicroBlockReader::OB_MAX_BATCH_ROW_COUNT];
-  char obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj) * ObIMicroBlockReader::OB_MAX_BATCH_ROW_COUNT];
+  void* obj_buf_;
 };
 
 /*
@@ -179,9 +182,11 @@ class ObMultiVersionMicroBlockRowScanner : public ObIMicroBlockRowScanner {
 public:
   ObMultiVersionMicroBlockRowScanner()
       : cell_allocator_(common::ObModIds::OB_SSTABLE_READER),
+        buf_allocator_("BUF_ALLOC"),
         reserved_pos_(ObIMicroBlockReader::INVALID_ROW_INDEX),
         finish_scanning_cur_rowkey_(true),
         is_last_multi_version_row_(true),
+        tmp_row_obj_buf_(NULL),
         trans_version_col_idx_(-1),
         sql_sequence_col_idx_(-1),
         cell_cnt_(0),
@@ -218,6 +223,7 @@ private:
   storage::ObStoreRow cur_micro_row_;
   storage::ObNopPos nop_pos_;
   common::ObArenaAllocator cell_allocator_;
+  common::ObArenaAllocator buf_allocator_;
   int64_t reserved_pos_;
   // Use shallow_copy to directly quote the original data of the microblock when compacting,
   // only at the moment (when the dump row format is flat) there is no risk
@@ -227,7 +233,7 @@ private:
   // TRUE: meet Last Flag of current rowkey
   bool is_last_multi_version_row_;
   storage::ObStoreRow tmp_row_;
-  char tmp_row_obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)];
+  void* tmp_row_obj_buf_;
   int64_t trans_version_col_idx_;
   int64_t sql_sequence_col_idx_;
   int64_t cell_cnt_;
@@ -318,8 +324,8 @@ private:
   ObFixedBitSet<OB_ALL_MAX_COLUMN_ID>* bit_set_[RNPI_MAX];
   storage::ObObjDeepCopy obj_copy_;
   storage::ObStoreRow row_;
-  ObObj obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT];
-  uint16_t col_id_buf_[common::OB_ROW_MAX_COLUMNS_COUNT];
+  ObObj* obj_buf_;
+  uint16_t* col_id_buf_;
   bool is_last_multi_version_row_;
   bool is_row_queue_ready_;
   bool add_sql_sequence_col_flag_;  // old-version sstable should add sql_sequence col

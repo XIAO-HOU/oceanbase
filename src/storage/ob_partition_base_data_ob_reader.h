@@ -433,10 +433,9 @@ private:
 
 class ObLogicRowReader : public ObIStoreRowIterator {
 public:
-  ObLogicRowReader() : is_inited_(false), rpc_reader_(), arg_(NULL), store_row_()
+  ObLogicRowReader() : is_inited_(false), rpc_reader_(), arg_(NULL), store_row_(), buf_allocator_("BUF_ALLOC"), buff_obj_(NULL)
   {}
-  virtual ~ObLogicRowReader()
-  {}
+  virtual ~ObLogicRowReader();
 
   int init(obrpc::ObPartitionServiceRpcProxy& srv_rpc_proxy, common::ObInOutBandwidthThrottle& bandwidth_throttle,
       const common::ObAddr& src_server, const obrpc::ObFetchLogicRowArg& arg);
@@ -449,15 +448,16 @@ private:
   ObStreamRpcReader<obrpc::OB_FETCH_LOGIC_ROW> rpc_reader_;
   const obrpc::ObFetchLogicRowArg* arg_;
   ObStoreRow store_row_;
-  ObObj buff_obj_[OB_ROW_MAX_COLUMNS_COUNT];
+  common::ObArenaAllocator buf_allocator_;
+  // ObObj buff_obj_[OB_ROW_MAX_COLUMNS_COUNT];
+  ObObj* buff_obj_;
   DISALLOW_COPY_AND_ASSIGN(ObLogicRowReader);
 };
 
 class ObLogicRowSliceReader : public ObIStoreRowIterator {
 public:
   ObLogicRowSliceReader();
-  virtual ~ObLogicRowSliceReader()
-  {}
+  virtual ~ObLogicRowSliceReader();
 
   int init(obrpc::ObPartitionServiceRpcProxy& srv_rpc_proxy, common::ObInOutBandwidthThrottle& bandwidth_throttle,
       const common::ObAddr& src_server, const obrpc::ObFetchLogicRowArg& arg, const int64_t cluster_id);
@@ -478,8 +478,11 @@ private:
   ObLogicStreamRpcReader<obrpc::OB_FETCH_LOGIC_ROW_SLICE> rpc_reader_;
   const obrpc::ObFetchLogicRowArg* arg_;
   ObStoreRow store_row_;
-  ObObj buff_obj_[OB_ROW_MAX_COLUMNS_COUNT];
-  uint16_t column_ids_[OB_ROW_MAX_COLUMNS_COUNT];
+  common::ObArenaAllocator buf_allocator_;
+  // ObObj buff_obj_[OB_ROW_MAX_COLUMNS_COUNT];
+  ObObj* buff_obj_;
+  // uint16_t column_ids_[OB_ROW_MAX_COLUMNS_COUNT];
+  uint16_t* column_ids_;
   common::ObMemBuf last_key_buf_;
   common::ObStoreRowkey last_key_;
   int64_t schema_rowkey_cnt_;

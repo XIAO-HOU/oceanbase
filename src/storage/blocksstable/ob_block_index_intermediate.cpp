@@ -50,6 +50,7 @@ ObBlockIntermediateBuilder::ObBlockIntermediateBuilder()
       intermediate_row_(),
       allocator_(ObModIds::OB_BLOCK_INDEX_INTERMEDIATE),
       row_reader_(),
+      obj_buf_(NULL),
       rowkey_column_count_(0),
       is_inited_(false)
 {}
@@ -63,6 +64,10 @@ void ObBlockIntermediateBuilder::reset()
 {
   intermediate_row_.reset();
   header_.reset();
+  if (OB_NOT_NULL(obj_buf_)) {
+    allocator_.free(obj_buf_);
+    obj_buf_ = NULL;
+  }
   allocator_.reset();
   rowkey_column_count_ = 0;
   is_inited_ = false;
@@ -80,6 +85,9 @@ int ObBlockIntermediateBuilder::init(const int64_t rowkey_column_count)
   if (OB_UNLIKELY(is_inited_)) {
     ret = OB_INIT_TWICE;
     STORAGE_LOG(WARN, "ObBlockIntermediateBuilder init twice", K(ret));
+  } if (OB_ISNULL(obj_buf_ = allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "failed to alloc obj_buf_ memory", K(ret));
   } else {
     rowkey_column_count_ = rowkey_column_count;
     intermediate_row_.flag_ = common::ObActionFlag::OP_ROW_EXIST;

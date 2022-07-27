@@ -1763,11 +1763,26 @@ ObLogicRowSliceReader::ObLogicRowSliceReader()
       rpc_reader_(),
       arg_(NULL),
       store_row_(),
+      buf_allocator_("BUF_ALLOC"),
+      buff_obj_(NULL),
+      column_ids_(NULL),
       last_key_buf_(OB_MALLOC_NORMAL_BLOCK_SIZE),
       last_key_(),
       schema_rowkey_cnt_(0),
       cluster_id_(OB_INVALID_CLUSTER_ID)
 {}
+
+ObLogicRowSliceReader::~ObLogicRowSliceReader ()
+{
+  if (OB_NOT_NULL(buff_obj_)) {
+    buf_allocator_.free(buff_obj_);
+    buff_obj_ = NULL;
+  }
+  if (OB_NOT_NULL(column_ids_)) {
+    buf_allocator_.free(column_ids_);
+    column_ids_ = NULL;
+  }
+}
 
 int ObLogicRowSliceReader::init(ObPartitionServiceRpcProxy& srv_rpc_proxy, ObInOutBandwidthThrottle& bandwidth_throttle,
     const ObAddr& src_server, const ObFetchLogicRowArg& rpc_arg, const int64_t cluster_id)
@@ -1798,6 +1813,12 @@ int ObLogicRowSliceReader::init(ObPartitionServiceRpcProxy& srv_rpc_proxy, ObInO
     LOG_WARN("Failed to check lob column in table schema");
   } else if (OB_FAIL(rpc_reader_.init(bandwidth_throttle, has_lob))) {
     LOG_WARN("failed to init rpc_reader", K(ret));
+  } else if (OB_ISNULL(buff_obj_ = reinterpret_cast<ObObj*>(buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc buff_obj_ memory", K(ret));
+  } else if (OB_ISNULL(column_ids_ = reinterpret_cast<uint16_t*>(buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(uint16_t))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_ids_ memory", K(ret));
   } else {
     LOG_INFO("init fetch logic row reader", K(src_server), K(rpc_arg));
     srv_rpc_proxy_ = &srv_rpc_proxy;
@@ -1928,6 +1949,14 @@ int ObLogicRowSliceReader::copy_rowkey()
   return ret;
 }
 
+ObLogicRowReader::~ObLogicRowReader ()
+{
+  if (OB_NOT_NULL(buff_obj_)) {
+    buf_allocator_.free(buff_obj_);
+    buff_obj_ = NULL;
+  }
+}
+
 int ObLogicRowReader::init(ObPartitionServiceRpcProxy& srv_rpc_proxy, ObInOutBandwidthThrottle& bandwidth_throttle,
     const ObAddr& addr, const ObFetchLogicRowArg& rpc_arg)
 {
@@ -1937,6 +1966,9 @@ int ObLogicRowReader::init(ObPartitionServiceRpcProxy& srv_rpc_proxy, ObInOutBan
     LOG_WARN("can not init twice", K(ret));
   } else if (OB_FAIL(rpc_reader_.init(bandwidth_throttle))) {
     LOG_WARN("failed to init rpc_reader", K(ret));
+  } else if (OB_ISNULL(buff_obj_ = reinterpret_cast<ObObj*>(buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc buff_obj_ memory", K(ret));
   } else {
     LOG_INFO("init fetch logic row reader", K(addr), K(rpc_arg));
     if (OB_FAIL(srv_rpc_proxy.to(addr)

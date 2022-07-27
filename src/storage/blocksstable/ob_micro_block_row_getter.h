@@ -63,11 +63,14 @@ private:
 
 private:
   common::ObArenaAllocator allocator_;
+  common::ObArenaAllocator buf_allocator_;
   ObColumnMap column_map_;
   storage::ObStoreRow row_;
-  char obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(common::ObObj)];
+  // char obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(common::ObObj)];
+  void* obj_buf_;
   storage::ObStoreRow full_row_;
-  char full_row_obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(common::ObObj)];
+  // char full_row_obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(common::ObObj)];
+  void* full_row_obj_buf_;
 };
 
 }  // namespace blocksstable

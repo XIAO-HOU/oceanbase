@@ -108,11 +108,24 @@ int ObIMicroBlockRowFetcher::prepare_reader(const ObFullMacroBlockMeta& macro_me
 /**
  * ----------------------------------------------------------ObMicroBlockRowGetter---------------------------------------------------------------
  */
-ObMicroBlockRowGetter::ObMicroBlockRowGetter() : allocator_(ObModIds::OB_STORE_ROW_GETTER)
+ObMicroBlockRowGetter::ObMicroBlockRowGetter() 
+  : allocator_(ObModIds::OB_STORE_ROW_GETTER),
+    buf_allocator_("BUF_ALLOC"),
+    obj_buf_(NULL),
+    full_row_obj_buf_(NULL)  
 {}
 
 ObMicroBlockRowGetter::~ObMicroBlockRowGetter()
-{}
+{
+  if (OB_NOT_NULL(obj_buf_)) {
+    buf_allocator_.free(obj_buf_);
+    obj_buf_ = NULL;
+  }
+  if (OB_NOT_NULL(full_row_obj_buf_)) {
+    buf_allocator_.free(full_row_obj_buf_);
+    full_row_obj_buf_ = NULL;
+  }
+}
 
 int ObMicroBlockRowGetter::init(const ObTableIterParam& param, ObTableAccessContext& context, const ObSSTable* sstable)
 {
@@ -145,6 +158,12 @@ int ObMicroBlockRowGetter::init(const ObTableIterParam& param, ObTableAccessCont
                  projector,
                  sstable->get_multi_version_rowkey_type()))) {
     LOG_WARN("fail to init column map", K(ret));
+  } else if (OB_ISNULL(obj_buf_ = buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc obj_buf_ memory", K(ret));
+  } else if (OB_ISNULL(full_row_obj_buf_ = buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc full_row_obj_buf memory", K(ret));
   } else if (OB_FAIL(ObIMicroBlockRowFetcher::init(param, context, sstable))) {
     LOG_WARN("fail to init micro block row fecher, ", K(ret));
   } else {

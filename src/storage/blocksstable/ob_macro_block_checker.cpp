@@ -28,6 +28,10 @@ void ObSSTableMacroBlockChecker::destroy()
 {
   flat_reader_.reset();
   column_map_.reset();
+  if (OB_NOT_NULL(obj_buf_)) {
+    allocator_.free(obj_buf_);
+    obj_buf_ = NULL;
+  } 
   allocator_.reset();
 }
 
@@ -396,6 +400,9 @@ int ObSSTableMacroBlockChecker::check_micro_data(
     STORAGE_LOG(WARN, "Invalid argument, ", K(ret), KP(micro_buf), K(micro_buf_size), K(meta));
   } else if (OB_FAIL(build_column_map(meta))) {
     STORAGE_LOG(WARN, "fail to build column map", K(ret));
+  } else if (OB_ISNULL(obj_buf_ = allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc obj_buf_ memory", K(ret));
   } else {
     ObIMicroBlockReader* reader = NULL;
     ObRowStoreType read_out_type = MAX_ROW_STORE;

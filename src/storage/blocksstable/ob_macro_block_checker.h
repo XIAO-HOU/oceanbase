@@ -32,7 +32,7 @@ enum ObMacroBlockCheckLevel {
 // note: this class is NOT thread safe
 class ObSSTableMacroBlockChecker {
 public:
-  ObSSTableMacroBlockChecker() : flat_reader_(), allocator_(common::ObModIds::OB_MACRO_BLOCK_CHECKER), macro_reader_()
+  ObSSTableMacroBlockChecker() : flat_reader_(), allocator_(common::ObModIds::OB_MACRO_BLOCK_CHECKER), macro_reader_(), obj_buf_(NULL)
   {}
   virtual ~ObSSTableMacroBlockChecker()
   {}
@@ -66,7 +66,8 @@ private:
   common::ObArenaAllocator allocator_;
   ObMacroBlockReader macro_reader_;
   ObColumnMap column_map_;
-  char obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(common::ObObj)];  // for reader to get row
+  // char obj_buf_[common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(common::ObObj)];  // for reader to get row
+  void* obj_buf_;
 };
 
 }  // namespace blocksstable

@@ -30,7 +30,9 @@ ObLobMergeWriter::ObLobMergeWriter()
       data_store_desc_(NULL),
       macro_start_seq_(-1),
       use_old_macro_block_count_(0),
-      is_inited_(false)
+      is_inited_(false),
+      buf_allocator_("BUF_ALLOC"),
+      buffer_(NULL)
 {}
 
 ObLobMergeWriter::~ObLobMergeWriter()
@@ -45,6 +47,11 @@ void ObLobMergeWriter::reset()
   macro_start_seq_ = -1;
   use_old_macro_block_count_ = 0;
   result_row_.reset();
+  if (OB_NOT_NULL(buffer_)) {
+    buf_allocator_.free(buffer_);
+    buffer_ = NULL;
+  }
+  buf_allocator_.reset();
   is_inited_ = false;
 }
 
@@ -79,6 +86,9 @@ int ObLobMergeWriter::init(const ObMacroDataSeq& macro_start_seq, const ObDataSt
     } else if (!block_write_ctx_.file_handle_.is_valid() &&
                OB_FAIL(block_write_ctx_.file_handle_.assign(data_store_desc.file_handle_))) {
       STORAGE_LOG(WARN, "Failed to assign file handle", K(ret));
+    } else if (OB_ISNULL(buffer_ = buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "Failed to alloc buffer_ memory", K(ret));
     } else {
       macro_start_seq_ = lob_data_seq.get_data_seq();
       use_old_macro_block_count_ = 0;

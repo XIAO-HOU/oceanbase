@@ -469,6 +469,9 @@ int ObMicroBlockRowScanner::init(const ObTableIterParam& param, ObTableAccessCon
                  projector,
                  storage::ObMultiVersionRowkeyHelpper::MVRC_NONE /*multi version col type*/))) {
     STORAGE_LOG(WARN, "Fail to init col map, ", K(ret));
+  } else if (OB_ISNULL(obj_buf_ = buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj) * ObIMicroBlockReader::OB_MAX_BATCH_ROW_COUNT))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "fail to alloc obj_buf_ memory", K(ret));
   } else {
     for (int64_t i = 0; i < ObIMicroBlockReader::OB_MAX_BATCH_ROW_COUNT; ++i) {
       ObStoreRow& row = rows_[i];
@@ -570,6 +573,11 @@ int ObMicroBlockRowScanner::inner_get_next_rows(const storage::ObStoreRow*& rows
 void ObMicroBlockRowScanner::reset()
 {
   ObIMicroBlockRowScanner::reset();
+  if (OB_NOT_NULL(obj_buf_)) {
+    buf_allocator_.free(obj_buf_);
+    obj_buf_ = NULL;
+  }
+  buf_allocator_.reset();
 }
 
 int ObMultiVersionMicroBlockRowScanner::init(
@@ -605,6 +613,9 @@ int ObMultiVersionMicroBlockRowScanner::init(
       STORAGE_LOG(WARN, "failed to alloc row", K(ret), K(cell_cnt_));
     } else if (OB_FAIL(nop_pos_.init(*context.allocator_, cell_cnt_))) {
       STORAGE_LOG(WARN, "failed to init nop_pos", K(ret), K(cell_cnt_));
+    } else if (OB_ISNULL(tmp_row_obj_buf_ = buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj)))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "failed to alloc tmp_row_obj_buf memory", K(ret));
     } else {
       const int64_t extra_multi_version_col_cnt =
           ObMultiVersionRowkeyHelpper::get_multi_version_rowkey_cnt(sstable->get_multi_version_rowkey_type());
@@ -674,6 +685,11 @@ void ObMultiVersionMicroBlockRowScanner::reset()
 {
   inner_reset();
   ObIMicroBlockRowScanner::reset();
+  if (OB_NOT_NULL(tmp_row_obj_buf_)) {
+    buf_allocator_.free(tmp_row_obj_buf_);
+    tmp_row_obj_buf_ = NULL;
+  }
+  buf_allocator_.reset();
 }
 
 void ObMultiVersionMicroBlockRowScanner::rescan()
@@ -1280,6 +1296,8 @@ ObMultiVersionMicroBlockMinorMergeRowScanner::ObMultiVersionMicroBlockMinorMerge
       row_queue_(),
       obj_copy_(row_allocator_),
       row_(),
+      obj_buf_(NULL),
+      col_id_buf_(NULL),
       is_last_multi_version_row_(false),
       is_row_queue_ready_(false),
       add_sql_sequence_col_flag_(false),
@@ -1384,6 +1402,12 @@ int ObMultiVersionMicroBlockMinorMergeRowScanner::init(
       STORAGE_LOG(WARN, "Fail to init col map", K(ret), KPC_(param), K(multi_version_rowkey_type));
     } else if (OB_FAIL(init_row_queue(out_cols.count()))) {
       STORAGE_LOG(WARN, "Fail to init row queue", K(ret), K(out_cols.count()));
+    } else if (OB_ISNULL(obj_buf_ = reinterpret_cast<ObObj*>(allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(ObObj))))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "failed to alloc obj_buf_ memory", K(ret));
+    } else if (OB_ISNULL(col_id_buf_ = reinterpret_cast<uint16_t*>(allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(uint16_t))))) {
+      ret = OB_ALLOCATE_MEMORY_FAILED;
+      STORAGE_LOG(WARN, "failed to alloc col_id_buf_ memory", K(ret));
     } else {
       is_inited_ = true;
     }
@@ -1500,6 +1524,14 @@ void ObMultiVersionMicroBlockMinorMergeRowScanner::reset()
   trans_version_col_idx_ = ObIMicroBlockReader::INVALID_ROW_INDEX;
   sql_sequence_col_idx_ = ObIMicroBlockReader::INVALID_ROW_INDEX;
   row_allocator_.reset();  // clear row memory
+  if (OB_NOT_NULL(obj_buf_)) {
+    allocator_.free(obj_buf_);
+    obj_buf_ = NULL;
+  }
+  if (OB_NOT_NULL(col_id_buf_)) {
+    allocator_.free(col_id_buf_);
+    col_id_buf_ = NULL;
+  }
   allocator_.reset();
   row_queue_.reset();
   if (FLAT_ROW_STORE == context_->read_out_type_) {
