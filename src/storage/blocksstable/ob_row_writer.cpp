@@ -170,11 +170,40 @@ int ObRowWriter::write_char(
     }                                                                                      \
   }
 
-ObRowWriter::ObRowWriter() : buf_(NULL), buf_size_(0), start_pos_(0), pos_(0), row_header_(NULL), column_index_count_(0)
+ObRowWriter::ObRowWriter() 
+    : buf_(NULL),
+      buf_size_(0),
+      start_pos_(0), 
+      pos_(0), 
+      row_header_(NULL), 
+      column_index_count_(0),
+      buf_allocator_("BUF_ALLOC"),
+      column_ids_(NULL),
+      column_indexs_8_(NULL),
+      column_indexs_16_(NULL),
+      column_indexs_32_(NULL)
 {}
 
 ObRowWriter::~ObRowWriter()
-{}
+{
+  if (OB_NOT_NULL(column_ids_)) {
+    buf_allocator_.free(column_ids_);
+    column_ids_ = NULL;
+  }
+  if (OB_NOT_NULL(column_indexs_8_)) {
+    buf_allocator_.free(column_indexs_8_);
+    column_indexs_8_ = NULL;
+  }
+  if (OB_NOT_NULL(column_indexs_16_)) {
+    buf_allocator_.free(column_indexs_16_);
+    column_indexs_16_ = NULL;
+  }
+  if (OB_NOT_NULL(column_indexs_32_)) {
+    buf_allocator_.free(column_indexs_32_);
+    column_indexs_32_ = NULL;
+  }
+  buf_allocator_.reset();
+}
 
 ObRowWriter::NumberAllocator::NumberAllocator(char* buf, const int64_t buf_size, int64_t& pos)
     : buf_(buf), buf_size_(buf_size), pos_(pos)
@@ -401,6 +430,18 @@ int ObRowWriter::init_common(char* buf, const int64_t buf_size, const int64_t po
   if (NULL == buf || buf_size <= 0 || pos < 0) {
     ret = OB_INVALID_ARGUMENT;
     STORAGE_LOG(WARN, "invalid row writer input argument.", K(buf), K(buf_size), K(pos), K(ret));
+  } else if (OB_ISNULL(column_ids_ = reinterpret_cast<uint16_t*>(buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(uint16_t))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_ids_ memory", K(ret));
+  } else if (OB_ISNULL(column_indexs_8_ = reinterpret_cast<int8_t*>(buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(int8_t))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_indexs_ memory", K(ret));
+  }else if (OB_ISNULL(column_indexs_16_ = reinterpret_cast<int16_t*>(buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(int16_t))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_indexs_16_ memory", K(ret));
+  }else if (OB_ISNULL(column_indexs_32_ = reinterpret_cast<int32_t*>(buf_allocator_.alloc(common::OB_ROW_MAX_COLUMNS_COUNT * sizeof(int32_t))))) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+    STORAGE_LOG(WARN, "failed to alloc column_indexs_32_ memory", K(ret));
   } else if (pos >= buf_size) {
     ret = OB_BUF_NOT_ENOUGH;
   } else {
